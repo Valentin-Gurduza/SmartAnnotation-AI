@@ -1,0 +1,23 @@
+# SmartAnnotate-AI Dependencies
+# Core Framework
+streamlit>=1.38.0,<2.0.0
+pydantic>=2.0.0,<3.0.0
+
+# HTTP & API
+httpx>=0.27.0,<1.0.0
+openai>=1.40.0,<2.0.0
+
+# Data Processing
+pandas>=2.0.0,<3.0.0
+
+# ML & Metrics
+scikit-learn>=1.3.0,<2.0.0
+
+# Configuration
+python-dotenv>=1.0.0,<2.0.0
+
+# CLI & Formatting
+rich>=13.0.0,<14.0.0
+
+# Visualization
+plotly>=5.18.0,<6.0.0
