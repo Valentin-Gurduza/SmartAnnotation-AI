@@ -47,12 +47,12 @@ fi
 # ── 2. Create virtual environment ────────────────
 echo -e "${YELLOW}[2/5]${NC} Creating virtual environment..."
 
-VENV_DIR=".venv"
+VENV_DIR="venv"
 if [ -d "$VENV_DIR" ]; then
     echo -e "  ${YELLOW}⚠ Virtual environment already exists. Reusing.${NC}"
 else
     "$PYTHON_CMD" -m venv "$VENV_DIR"
-    echo -e "  ${GREEN}✓ Created virtual environment at .venv/${NC}"
+    echo -e "  ${GREEN}✓ Created virtual environment at venv/${NC}"
 fi
 
 # ── 3. Activate & install dependencies ───────────

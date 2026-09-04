@@ -52,7 +52,7 @@ cd SmartAnnotation-AI
 bash setup_env.sh
 
 # Activate environment
-source .venv/bin/activate
+source venv/bin/activate
 
 # (Optional) Add your API key
 echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" >> .env

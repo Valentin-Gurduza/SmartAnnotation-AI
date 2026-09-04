@@ -37,7 +37,7 @@ from schemas import (
     SentimentLabel,
     TaskType,
 )
-from pipeline import process_batch, AVAILABLE_MODELS
+from pipeline import process_batch, AVAILABLE_MODELS, fetch_available_models, search_models
 from metrics import (
     cohens_kappa,
     fleiss_kappa,
@@ -371,14 +371,65 @@ def render_sidebar():
 
         # Model settings
         st.markdown("### 🤖 AI Model")
-        st.session_state.model = st.selectbox(
-            "Pre-labeling Model",
-            AVAILABLE_MODELS,
-            index=AVAILABLE_MODELS.index(st.session_state.model)
-            if st.session_state.model in AVAILABLE_MODELS
-            else 0,
-            key="sidebar_model",
+
+        # Fetch all models from OpenRouter (cached after first call)
+        if "all_models" not in st.session_state:
+            with st.spinner("Loading models from OpenRouter..."):
+                st.session_state.all_models = fetch_available_models()
+
+        if st.button("🔄 Refresh Models", key="refresh_models", use_container_width=True):
+            with st.spinner("Refreshing..."):
+                st.session_state.all_models = fetch_available_models(force_refresh=True)
+            st.rerun()
+
+        model_search = st.text_input(
+            "🔍 Search models",
+            value=st.session_state.get("model_search_query", ""),
+            key="model_search_input",
+            placeholder="e.g. llama, :free, mistral, gpt...",
+            help="Type to filter. Use ':free' to show free models only.",
         )
+        st.session_state.model_search_query = model_search
+
+        filtered = search_models(model_search or "", st.session_state.all_models)
+
+        if filtered:
+            # Build display labels: "🆓 Model Name (id)" or "Model Name (id)"
+            model_options = []
+            model_id_map = {}
+            for m in filtered:
+                free_badge = "🆓 " if m["is_free"] else ""
+                ctx = f"{m['context_length'] // 1000}k" if m['context_length'] else "?"
+                display = f"{free_badge}{m['name']}  [{ctx} ctx]"
+                model_options.append(display)
+                model_id_map[display] = m["id"]
+
+            # Try to preserve current selection
+            current_display = None
+            for disp, mid in model_id_map.items():
+                if mid == st.session_state.model:
+                    current_display = disp
+                    break
+
+            default_idx = (
+                model_options.index(current_display)
+                if current_display and current_display in model_options
+                else 0
+            )
+
+            selected_display = st.selectbox(
+                "Select Model",
+                model_options,
+                index=default_idx,
+                key="sidebar_model",
+            )
+            st.session_state.model = model_id_map[selected_display]
+
+            # Show selected model ID
+            st.caption(f"`{st.session_state.model}`")
+        else:
+            st.warning("No models match your search.")
+            st.caption(f"Current: `{st.session_state.model}`")
 
         st.markdown("---")
 

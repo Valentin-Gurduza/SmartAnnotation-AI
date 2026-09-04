@@ -19,7 +19,13 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
-from schemas import AnnotationRecord, AnnotationTask, HumanReview, RoutingDecision
+from schemas import (
+    AnnotationRecord,
+    AnnotationTask,
+    HumanReview,
+    ReviewAction,
+    RoutingDecision,
+)
 
 
 # ──────────────────────────────────────────────
@@ -45,7 +51,7 @@ def cohens_kappa(
     if len(annotations_a) == 0:
         return 0.0
 
-    return float(cohen_kappa_score(annotations_a, annotations_b))
+    return cohen_kappa_score(annotations_a, annotations_b)
 
 
 # ──────────────────────────────────────────────
@@ -124,17 +130,23 @@ def human_ai_alignment(
     if label_names is None:
         label_names = sorted(set(ai_labels + human_labels))
 
-    precision, recall, f1, support = precision_recall_fscore_support(
+    res = precision_recall_fscore_support(
         human_labels, ai_labels, labels=label_names, average=None, zero_division=0
+    )
+    precision_arr = np.asarray(res[0])
+    recall_arr = np.asarray(res[1])
+    f1_arr = np.asarray(res[2])
+    support_arr = (
+        np.asarray(res[3]) if res[3] is not None else np.zeros(len(label_names))
     )
 
     per_label = {}
     for i, label in enumerate(label_names):
         per_label[label] = {
-            "precision": round(float(precision[i]), 4),
-            "recall": round(float(recall[i]), 4),
-            "f1": round(float(f1[i]), 4),
-            "support": int(support[i]),
+            "precision": round(float(precision_arr[i]), 4),
+            "recall": round(float(recall_arr[i]), 4),
+            "f1": round(float(f1_arr[i]), 4),
+            "support": int(support_arr[i]),
         }
 
     # Macro averages
@@ -241,9 +253,9 @@ def review_statistics(reviews: list[HumanReview]) -> dict:
 
     total = len(reviews)
     actions = Counter(r.action for r in reviews)
-    accepted = actions.get("accept", 0)
-    edited = actions.get("edit", 0)
-    rejected = actions.get("reject", 0)
+    accepted = actions.get(ReviewAction.ACCEPT, 0)
+    edited = actions.get(ReviewAction.EDIT, 0)
+    rejected = actions.get(ReviewAction.REJECT, 0)
 
     review_times = [
         r.time_spent_seconds

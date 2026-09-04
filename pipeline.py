@@ -46,13 +46,109 @@ DEFAULT_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.85"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 
-AVAILABLE_MODELS = [
+FALLBACK_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "openai/gpt-4o-mini",
     "mistralai/mistral-7b-instruct",
     "google/gemini-flash-1.5",
     "anthropic/claude-3.5-haiku",
 ]
+
+# Module-level cache for fetched models
+_models_cache: dict = {"models": [], "fetched": False}
+
+
+def fetch_available_models(force_refresh: bool = False) -> list[dict]:
+    """
+    Fetch all available models from OpenRouter's /models endpoint.
+
+    Returns a list of dicts with keys: id, name, pricing, context_length.
+    Results are cached after the first successful fetch.
+    """
+    if _models_cache["fetched"] and not force_refresh:
+        return _models_cache["models"]
+
+    try:
+        with httpx.Client(timeout=15) as client:
+            response = client.get(f"{OPENROUTER_BASE_URL}/models")
+            response.raise_for_status()
+            data = response.json()
+
+        models = []
+        for m in data.get("data", []):
+            model_id = m.get("id", "")
+            name = m.get("name", model_id)
+            pricing = m.get("pricing", {})
+            prompt_price = float(pricing.get("prompt", "0") or "0")
+            completion_price = float(pricing.get("completion", "0") or "0")
+            is_free = prompt_price == 0 and completion_price == 0
+            context_length = m.get("context_length", 0)
+
+            models.append({
+                "id": model_id,
+                "name": name,
+                "is_free": is_free,
+                "context_length": context_length,
+                "prompt_price": prompt_price,
+                "completion_price": completion_price,
+            })
+
+        # Sort: free models first, then by name
+        models.sort(key=lambda x: (not x["is_free"], x["name"].lower()))
+
+        _models_cache["models"] = models
+        _models_cache["fetched"] = True
+        console.print(f"[green]✓ Fetched {len(models)} models from OpenRouter[/green]")
+        return models
+
+    except Exception as e:
+        console.print(f"[yellow]⚠ Could not fetch models from OpenRouter: {e}[/yellow]")
+        # Return fallback models as dicts
+        fallback = [
+            {"id": mid, "name": mid.split("/")[-1], "is_free": False,
+             "context_length": 0, "prompt_price": 0, "completion_price": 0}
+            for mid in FALLBACK_MODELS
+        ]
+        _models_cache["models"] = fallback
+        _models_cache["fetched"] = True
+        return fallback
+
+
+def search_models(query: str, models: list[dict] | None = None) -> list[dict]:
+    """
+    Filter models by search query (matches against id and name).
+
+    Args:
+        query: Search string (case-insensitive). Use ':free' to filter free models.
+        models: Optional pre-fetched model list; fetches if None.
+
+    Returns:
+        Filtered list of model dicts.
+    """
+    if models is None:
+        models = fetch_available_models()
+
+    if not query.strip():
+        return models
+
+    query_lower = query.lower().strip()
+    tokens = query_lower.split()
+
+    results = []
+    for m in models:
+        searchable = f"{m['id']} {m['name']}".lower()
+        if m["is_free"]:
+            searchable += " :free free"
+
+        # All tokens must match
+        if all(token in searchable for token in tokens):
+            results.append(m)
+
+    return results
+
+
+# Keep a simple list accessor for backward compatibility
+AVAILABLE_MODELS = FALLBACK_MODELS
 
 # ──────────────────────────────────────────────
 # Prompt Templates
